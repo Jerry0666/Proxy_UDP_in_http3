@@ -2,7 +2,11 @@ module RFC9298proxy
 
 go 1.21.1
 
-require github.com/quic-go/quic-go v0.42.0
+require (
+	github.com/quic-go/quic-go v0.42.0
+	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
+	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
+)
 
 require (
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
