@@ -75,20 +75,25 @@ func setRoute() {
 	execCommand(cmd)
 }
 
-func main() {
-	tapconfig := water.Config{
-		DeviceType: water.TUN,
-		PlatformSpecificParams: water.PlatformSpecificParams{
-			Name: "tun0",
-		},
+func IsIPv4(buf []byte) bool {
+	if buf[0] == 0x45 {
+		fmt.Println("receive a IPv4 packet!")
+		return true
+	} else {
+		return false
 	}
-	ifce, err := water.New(tapconfig)
-	if err != nil {
-		fmt.Println("create new tun interface error.")
-	}
-	go waterRead(ifce)
-	setRoute()
+}
 
+func IsUDP(buf []byte) bool {
+	if buf[9] == 0x11 {
+		fmt.Println("receive a UDP packet!")
+		return true
+	} else {
+		return false
+	}
+}
+
+func main() {
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -109,8 +114,27 @@ func main() {
 	d, _ := str.Datagrammer()
 	d.SendMessage([]byte("proxy test..."))
 
+	tapconfig := water.Config{
+		DeviceType: water.TUN,
+		PlatformSpecificParams: water.PlatformSpecificParams{
+			Name: "tun0",
+		},
+	}
+	ifce, err := water.New(tapconfig)
+	if err != nil {
+		fmt.Println("create new tun interface error.")
+	}
+	setRoute()
 	for {
-
+		var buf ethernet.Frame
+		buf.Resize(1500)
+		n, err := ifce.Read(buf)
+		if err != nil {
+			fmt.Println("tun read err")
+		}
+		IsIPv4(buf[:n])
+		IsUDP(buf[:n])
+		fmt.Printf("packet:%x\n", buf[:n])
 	}
 
 }
