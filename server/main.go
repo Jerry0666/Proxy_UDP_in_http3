@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"RFC9298proxy/proxy"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -21,7 +21,6 @@ import (
 type requestLogger struct{}
 
 func main() {
-
 	datagramHandle := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("URL PATH :%v\n", r.URL.Path)
 		path := r.URL.Path
@@ -32,16 +31,18 @@ func main() {
 		w.(http.Flusher).Flush()
 
 		s := r.Body.(http3.HTTPStreamer).HTTPStream()
-		defer s.Close()
 		d, ok := s.Datagrammer()
 		if !ok {
 			fmt.Println("convert to http3 Datagrammer error.")
 		}
+		//create a new proxy client
+		cl := new(proxy.ProxyClient)
+		cl.Datagrammer = d
+		cl.Stream = s
+		go cl.UplinkHandler()
+		for {
 
-		data, _ := d.ReceiveMessage(context.Background())
-		fmt.Printf("server receive datagram data! \n")
-		fmt.Printf("data:%s\n", data)
-
+		}
 	})
 
 	server := http3.Server{
