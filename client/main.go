@@ -7,6 +7,7 @@ import (
 
 	"crypto/tls"
 	"os/exec"
+	"strconv"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
@@ -77,7 +78,6 @@ func setRoute() {
 
 func IsIPv4(buf []byte) bool {
 	if buf[0] == 0x45 {
-		fmt.Println("receive a IPv4 packet!")
 		return true
 	} else {
 		return false
@@ -86,11 +86,32 @@ func IsIPv4(buf []byte) bool {
 
 func IsUDP(buf []byte) bool {
 	if buf[9] == 0x11 {
-		fmt.Println("receive a UDP packet!")
 		return true
 	} else {
 		return false
 	}
+}
+
+func ParseTargetIP(buf []byte) string {
+	IPbyte := buf[16:20]
+	IPstring := ""
+	for i := 0; i < 3; i++ {
+		x := int(IPbyte[i])
+		IPstring += strconv.Itoa(x)
+		IPstring += "."
+	}
+	x := int(IPbyte[3])
+	IPstring += strconv.Itoa(x)
+	fmt.Printf("target ip:%s\n", IPstring)
+	return IPstring
+}
+
+func ParseTargetPort(buf []byte) string {
+	Portbyte := buf[22:24]
+	port := int(Portbyte[0]) * 256
+	port += int(Portbyte[1])
+	fmt.Printf("port:%d\n", port)
+	return strconv.Itoa(port)
 }
 
 func main() {
@@ -125,15 +146,29 @@ func main() {
 		fmt.Println("create new tun interface error.")
 	}
 	setRoute()
+	ProxyManager := make(map[string]http3.Datagrammer)
 	for {
 		var buf ethernet.Frame
-		buf.Resize(1500)
+		buf.Resize(1024)
 		n, err := ifce.Read(buf)
 		if err != nil {
 			fmt.Println("tun read err")
 		}
-		IsIPv4(buf[:n])
-		IsUDP(buf[:n])
+		if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
+			targetIP := ParseTargetIP(buf[:n])
+			targetPort := ParseTargetPort(buf[:n])
+			targetAddr := targetIP + ":" + targetPort
+			d, ok := ProxyManager[targetAddr]
+			if !ok {
+				//do a proxy request and get the datagrammer.
+				id, _ := doProxyReq(client, targetIP, targetPort)
+				str := roundTripper.GetReqStream(id)
+				d, _ := str.Datagrammer()
+				ProxyManager[targetAddr] = d
+			} else {
+				d.SendMessage(buf[28:n])
+			}
+		}
 		fmt.Printf("packet:%x\n", buf[:n])
 	}
 

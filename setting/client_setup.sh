@@ -12,3 +12,4 @@ ip route add 11.0.0.0/8 dev client-eth1 scope link table 2
 ip route add default dev client-eth1 table 2
 
 ip route add default scope global dev client-eth1
+ip r add 100.0.0.0/24 dev client-eth0
