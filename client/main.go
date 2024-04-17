@@ -6,9 +6,12 @@ import (
 	"net/http"
 
 	"crypto/tls"
+	"net"
 	"os/exec"
 	"strconv"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	"github.com/songgao/packets/ethernet"
@@ -110,8 +113,72 @@ func ParseTargetPort(buf []byte) string {
 	Portbyte := buf[22:24]
 	port := int(Portbyte[0]) * 256
 	port += int(Portbyte[1])
-	fmt.Printf("port:%d\n", port)
+	fmt.Printf("target port:%d\n", port)
 	return strconv.Itoa(port)
+}
+
+func ParseSourceIP(buf []byte) string {
+	IPbyte := buf[12:16]
+	IPstring := ""
+	for i := 0; i < 3; i++ {
+		x := int(IPbyte[i])
+		IPstring += strconv.Itoa(x)
+		IPstring += "."
+	}
+	x := int(IPbyte[3])
+	IPstring += strconv.Itoa(x)
+	fmt.Printf("source ip:%s\n", IPstring)
+	return IPstring
+}
+
+func ParseSourcePort(buf []byte) string {
+	Portbyte := buf[20:22]
+	port := int(Portbyte[0]) * 256
+	port += int(Portbyte[1])
+	fmt.Printf("source port:%d\n", port)
+	return strconv.Itoa(port)
+}
+
+func buildUDPPacket(dst, src *net.UDPAddr) ([]byte, error) {
+	buffer := gopacket.NewSerializeBuffer()
+	payload := gopacket.Payload("build udp raw packet testing...")
+	ip := &layers.IPv4{
+		DstIP:    dst.IP,
+		SrcIP:    src.IP,
+		Version:  4,
+		TTL:      64,
+		Protocol: layers.IPProtocolUDP,
+	}
+	udp := &layers.UDP{
+		SrcPort: layers.UDPPort(src.Port),
+		DstPort: layers.UDPPort(dst.Port),
+	}
+	if err := udp.SetNetworkLayerForChecksum(ip); err != nil {
+		return nil, fmt.Errorf("Failed calc checksum: %s", err)
+	}
+	if err := gopacket.SerializeLayers(buffer, gopacket.SerializeOptions{ComputeChecksums: true, FixLengths: true}, ip, udp, payload); err != nil {
+		return nil, fmt.Errorf("Failed serialize packet: %s", err)
+	}
+	return buffer.Bytes(), nil
+}
+
+func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
+	targetIP := ParseTargetIP(buf)
+	targetPort := ParseTargetPort(buf)
+	targetPortInt, _ := strconv.Atoi(targetPort)
+	sourceIP := ParseSourceIP(buf)
+	sorcePort := ParseSourcePort(buf)
+	sorcePortInt, _ := strconv.Atoi(sorcePort)
+
+	src = &net.UDPAddr{
+		IP:   net.ParseIP(sourceIP),
+		Port: sorcePortInt,
+	}
+	dst = &net.UDPAddr{
+		IP:   net.ParseIP(targetIP),
+		Port: targetPortInt,
+	}
+	return src, dst
 }
 
 func main() {
@@ -130,11 +197,6 @@ func main() {
 	}
 	defer roundTripper.Close()
 	roundTripper.InitialMap()
-	id, _ := doProxyReq(client, "8.8.8.8", "6666")
-	str := roundTripper.GetReqStream(id)
-	d, _ := str.Datagrammer()
-	d.SendMessage([]byte("proxy test..."))
-
 	tapconfig := water.Config{
 		DeviceType: water.TUN,
 		PlatformSpecificParams: water.PlatformSpecificParams{
@@ -147,29 +209,57 @@ func main() {
 	}
 	setRoute()
 	ProxyManager := make(map[string]http3.Datagrammer)
-	for {
-		var buf ethernet.Frame
-		buf.Resize(1024)
-		n, err := ifce.Read(buf)
-		if err != nil {
-			fmt.Println("tun read err")
+	//test, temporary variable
+	var src, dst *net.UDPAddr
+	waitchan := make(chan struct{})
+	//uplink
+	go func() {
+		for {
+			var buf ethernet.Frame
+			buf.Resize(1024)
+			n, err := ifce.Read(buf)
+			if err != nil {
+				fmt.Println("tun read err")
+			}
+			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
+				targetIP := ParseTargetIP(buf[:n])
+				targetPort := ParseTargetPort(buf[:n])
+				targetAddr := targetIP + ":" + targetPort
+				d, ok := ProxyManager[targetAddr]
+				if !ok {
+					//do a proxy request and get the datagrammer.
+					id, _ := doProxyReq(client, targetIP, targetPort)
+					str := roundTripper.GetReqStream(id)
+					d, _ := str.Datagrammer()
+					ProxyManager[targetAddr] = d
+					//set the udp addr
+					src, dst = setUDPaddr(buf[:n])
+					waitchan <- struct{}{}
+				} else {
+					d.SendMessage(buf[28:n])
+				}
+			}
+			fmt.Printf("packet:%x\n", buf[:n])
 		}
-		if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
-			targetIP := ParseTargetIP(buf[:n])
-			targetPort := ParseTargetPort(buf[:n])
-			targetAddr := targetIP + ":" + targetPort
-			d, ok := ProxyManager[targetAddr]
-			if !ok {
-				//do a proxy request and get the datagrammer.
-				id, _ := doProxyReq(client, targetIP, targetPort)
-				str := roundTripper.GetReqStream(id)
-				d, _ := str.Datagrammer()
-				ProxyManager[targetAddr] = d
-			} else {
-				d.SendMessage(buf[28:n])
+	}()
+	//downlink
+	go func() {
+		<-waitchan
+		//downlink, switch src snd dst
+		data, err := buildUDPPacket(src, dst)
+		if err != nil {
+			fmt.Printf("buildUDPPacket err:%v\n", err)
+		} else {
+			_, err := ifce.Write(data)
+			if err != nil {
+				fmt.Printf("ifce Write err:%v\n", err)
 			}
 		}
-		fmt.Printf("packet:%x\n", buf[:n])
+
+	}()
+
+	for {
+
 	}
 
 }

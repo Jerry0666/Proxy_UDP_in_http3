@@ -41,6 +41,7 @@ func main() {
 		cl.Stream = s
 		cl.SetUDPconn(split[4], split[5])
 		go cl.UplinkHandler()
+		go cl.DownlinkHandler()
 		for {
 
 		}

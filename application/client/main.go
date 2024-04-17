@@ -16,34 +16,31 @@ func main() {
 		return
 	}
 	defer socket.Close()
-	for {
-		sendData := []byte("Hello server")
-		_, err = socket.Write(sendData)
-		if err != nil {
-			fmt.Println("send err:", err)
-			continue
+	go func() {
+		for {
+			sendData := []byte("Hello server")
+			_, err = socket.Write(sendData)
+			if err != nil {
+				fmt.Printf("socket write err:%v\n", err)
+				continue
+			}
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
-	}
-}
+	}()
 
-func second() {
-	socket, err := net.DialUDP("udp", nil, &net.UDPAddr{
-		IP:   net.IPv4(150, 0, 0, 2),
-		Port: 40000,
-	})
-	if err != nil {
-		fmt.Println("connect to server err:", err)
-		return
-	}
-	defer socket.Close()
-	for {
-		sendData := []byte("Hi server, it is from second.")
-		_, err = socket.Write(sendData)
-		if err != nil {
-			fmt.Println("send err:", err)
-			continue
+	receiveData := make([]byte, 1024)
+	go func() {
+		for {
+			n, err := socket.Read(receiveData)
+			if err != nil {
+				fmt.Println("socket read err:%v\n", err)
+			}
+			fmt.Printf("got: %s\n", receiveData[:n])
 		}
-		time.Sleep(time.Second)
+	}()
+
+	for {
+
 	}
+
 }

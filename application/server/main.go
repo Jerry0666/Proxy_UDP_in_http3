@@ -15,13 +15,14 @@ func main() {
 		return
 	}
 	defer listen.Close()
+	data := make([]byte, 1024)
 	for {
-		var data [1024]byte
-		n, _, err := listen.ReadFromUDP(data[:])
+		n, addr, err := listen.ReadFromUDP(data)
 		if err != nil {
 			fmt.Println("read udp failed, err:", err)
 			continue
 		}
-		fmt.Printf("receive data:%s\n", data[:n])
+		fmt.Printf("got: %s\n", data[:n])
+		listen.WriteToUDP([]byte("server got data"), addr)
 	}
 }

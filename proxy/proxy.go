@@ -33,6 +33,14 @@ func (c *ProxyClient) UplinkHandler() {
 	}
 }
 
+func (c *ProxyClient) DownlinkHandler() {
+	data := make([]byte, 1024)
+	for {
+		n, _ := c.UDPsocket.Read(data)
+		fmt.Printf("proxy client got: %s\n", data[:n])
+	}
+}
+
 func (c *ProxyClient) SetUDPconn(targetIP string, targetPort string) {
 	ip := net.ParseIP(targetIP)
 	port, err := strconv.Atoi(targetPort)
