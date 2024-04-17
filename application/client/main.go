@@ -7,7 +7,6 @@ import (
 )
 
 func main() {
-	go second()
 	socket, err := net.DialUDP("udp", nil, &net.UDPAddr{
 		IP:   net.IPv4(200, 0, 0, 1),
 		Port: 40000,

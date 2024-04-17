@@ -39,6 +39,7 @@ func main() {
 		cl := new(proxy.ProxyClient)
 		cl.Datagrammer = d
 		cl.Stream = s
+		cl.SetUDPconn(split[4], split[5])
 		go cl.UplinkHandler()
 		for {
 
