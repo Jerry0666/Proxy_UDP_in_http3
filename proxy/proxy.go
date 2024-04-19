@@ -23,7 +23,7 @@ func (c *ProxyClient) UplinkHandler() {
 		if err != nil {
 			fmt.Printf("UplinkHandler err:%v\n", err)
 		}
-		fmt.Printf("data:%s\n", data)
+		fmt.Printf("proxy uplink got: %s\n", data)
 		//forward data
 		_, err = c.UDPsocket.Write(data)
 		if err != nil {
@@ -36,8 +36,15 @@ func (c *ProxyClient) UplinkHandler() {
 func (c *ProxyClient) DownlinkHandler() {
 	data := make([]byte, 1024)
 	for {
-		n, _ := c.UDPsocket.Read(data)
-		fmt.Printf("proxy client got: %s\n", data[:n])
+		n, err := c.UDPsocket.Read(data)
+		if err != nil {
+			fmt.Printf("UDPsocket read err:%v\n", err)
+		}
+		fmt.Printf("proxy downlink got: %s\n", data[:n])
+		err = c.Datagrammer.SendMessage(data[:n])
+		if err != nil {
+			fmt.Printf("downlink handler err:%v\n", err)
+		}
 	}
 }
 

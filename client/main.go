@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"context"
 	"crypto/tls"
 	"net"
 	"os/exec"
@@ -105,7 +106,7 @@ func ParseTargetIP(buf []byte) string {
 	}
 	x := int(IPbyte[3])
 	IPstring += strconv.Itoa(x)
-	fmt.Printf("target ip:%s\n", IPstring)
+	// fmt.Printf("target ip:%s\n", IPstring)
 	return IPstring
 }
 
@@ -113,7 +114,7 @@ func ParseTargetPort(buf []byte) string {
 	Portbyte := buf[22:24]
 	port := int(Portbyte[0]) * 256
 	port += int(Portbyte[1])
-	fmt.Printf("target port:%d\n", port)
+	// fmt.Printf("target port:%d\n", port)
 	return strconv.Itoa(port)
 }
 
@@ -127,7 +128,7 @@ func ParseSourceIP(buf []byte) string {
 	}
 	x := int(IPbyte[3])
 	IPstring += strconv.Itoa(x)
-	fmt.Printf("source ip:%s\n", IPstring)
+	// fmt.Printf("source ip:%s\n", IPstring)
 	return IPstring
 }
 
@@ -135,13 +136,13 @@ func ParseSourcePort(buf []byte) string {
 	Portbyte := buf[20:22]
 	port := int(Portbyte[0]) * 256
 	port += int(Portbyte[1])
-	fmt.Printf("source port:%d\n", port)
+	// fmt.Printf("source port:%d\n", port)
 	return strconv.Itoa(port)
 }
 
-func buildUDPPacket(dst, src *net.UDPAddr) ([]byte, error) {
+func buildUDPPacket(dst, src *net.UDPAddr, data []byte) ([]byte, error) {
 	buffer := gopacket.NewSerializeBuffer()
-	payload := gopacket.Payload("build udp raw packet testing...")
+	payload := gopacket.Payload(data)
 	ip := &layers.IPv4{
 		DstIP:    dst.IP,
 		SrcIP:    src.IP,
@@ -181,6 +182,25 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 	return src, dst
 }
 
+func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
+	for {
+		data, err := d.ReceiveMessage(context.Background())
+		if err != nil {
+			fmt.Printf("downlink datagram receive message err:%v\n", err)
+		}
+		fmt.Printf("proxy client downlink got: %s\n", data)
+		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
+		if err != nil {
+			fmt.Printf("build UDP packet err: %v\n", err)
+		} else {
+			_, err := ifce.Write(UDPpacket)
+			if err != nil {
+				fmt.Printf("ifce Write err:%v\n", err)
+			}
+		}
+	}
+}
+
 func main() {
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
@@ -211,7 +231,6 @@ func main() {
 	ProxyManager := make(map[string]http3.Datagrammer)
 	//test, temporary variable
 	var src, dst *net.UDPAddr
-	waitchan := make(chan struct{})
 	//uplink
 	go func() {
 		for {
@@ -234,30 +253,15 @@ func main() {
 					ProxyManager[targetAddr] = d
 					//set the udp addr
 					src, dst = setUDPaddr(buf[:n])
-					waitchan <- struct{}{}
+					//create the downlink go routine
+					go downlink(d, src, dst, ifce)
 				} else {
 					d.SendMessage(buf[28:n])
 				}
 			}
-			fmt.Printf("packet:%x\n", buf[:n])
+			fmt.Printf("packet: %x\n", buf[:n])
 		}
 	}()
-	//downlink
-	go func() {
-		<-waitchan
-		//downlink, switch src snd dst
-		data, err := buildUDPPacket(src, dst)
-		if err != nil {
-			fmt.Printf("buildUDPPacket err:%v\n", err)
-		} else {
-			_, err := ifce.Write(data)
-			if err != nil {
-				fmt.Printf("ifce Write err:%v\n", err)
-			}
-		}
-
-	}()
-
 	for {
 
 	}
