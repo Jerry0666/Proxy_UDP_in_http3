@@ -1,8 +1,8 @@
 package proxy
 
 import (
+	"RFC9298proxy/utils"
 	"context"
-	"fmt"
 	"net"
 	"strconv"
 
@@ -21,13 +21,13 @@ func (c *ProxyClient) UplinkHandler() {
 	for {
 		data, err := c.Datagrammer.ReceiveMessage(context.Background())
 		if err != nil {
-			fmt.Printf("UplinkHandler err:%v\n", err)
+			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
 		}
-		fmt.Printf("proxy uplink got: %s\n", data)
+		utils.InfoPrintf("proxy uplink got: %s\n", data)
 		//forward data
 		_, err = c.UDPsocket.Write(data)
 		if err != nil {
-			fmt.Println("send err:", err)
+			utils.ErrorPrintf("UDP write err:", err)
 			continue
 		}
 	}
@@ -38,12 +38,12 @@ func (c *ProxyClient) DownlinkHandler() {
 	for {
 		n, err := c.UDPsocket.Read(data)
 		if err != nil {
-			fmt.Printf("UDPsocket read err:%v\n", err)
+			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
-		fmt.Printf("proxy downlink got: %s\n", data[:n])
+		utils.InfoPrintf("proxy downlink got: %s\n", data[:n])
 		err = c.Datagrammer.SendMessage(data[:n])
 		if err != nil {
-			fmt.Printf("downlink handler err:%v\n", err)
+			utils.ErrorPrintf("downlink handler err:%v\n", err)
 		}
 	}
 }
@@ -52,7 +52,7 @@ func (c *ProxyClient) SetUDPconn(targetIP string, targetPort string) {
 	ip := net.ParseIP(targetIP)
 	port, err := strconv.Atoi(targetPort)
 	if err != nil {
-		fmt.Printf("SetUDPconn get prot err:%v\n", err)
+		utils.ErrorPrintf("SetUDPconn get prot err:%v\n", err)
 	}
 	//create udp socket
 	socket, err := net.DialUDP("udp", nil, &net.UDPAddr{
@@ -60,7 +60,7 @@ func (c *ProxyClient) SetUDPconn(targetIP string, targetPort string) {
 		Port: port,
 	})
 	if err != nil {
-		fmt.Println("connect to server err:", err)
+		utils.ErrorPrintf("connect to server err:", err)
 		return
 	}
 	c.UDPsocket = socket

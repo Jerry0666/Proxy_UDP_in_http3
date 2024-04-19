@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"RFC9298proxy/utils"
 	"net"
 	"time"
 )
@@ -12,7 +12,7 @@ func main() {
 		Port: 40000,
 	})
 	if err != nil {
-		fmt.Println("connect to server err:", err)
+		utils.ErrorPrintf("connect to server err:", err)
 		return
 	}
 	defer socket.Close()
@@ -21,7 +21,7 @@ func main() {
 			sendData := []byte("Hello server")
 			_, err = socket.Write(sendData)
 			if err != nil {
-				fmt.Printf("socket write err:%v\n", err)
+				utils.ErrorPrintf("socket write err:%v\n", err)
 				continue
 			}
 			time.Sleep(time.Second)
@@ -33,9 +33,9 @@ func main() {
 		for {
 			n, err := socket.Read(receiveData)
 			if err != nil {
-				fmt.Println("socket read err:%v\n", err)
+				utils.ErrorPrintf("socket read err:%v\n", err)
 			}
-			fmt.Printf("got: %s\n", receiveData[:n])
+			utils.InfoPrintf("got: %s\n", receiveData[:n])
 		}
 	}()
 

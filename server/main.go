@@ -2,12 +2,12 @@ package main
 
 import (
 	"RFC9298proxy/proxy"
+	"RFC9298proxy/utils"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net/http"
 	"os"
@@ -22,18 +22,18 @@ type requestLogger struct{}
 
 func main() {
 	datagramHandle := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("URL PATH :%v\n", r.URL.Path)
+		utils.DebugPrintf("URL PATH :%v\n", r.URL.Path)
 		path := r.URL.Path
 		split := strings.Split(path, "/")
-		fmt.Printf("target host:%s\n", split[4])
-		fmt.Printf("target port:%s\n", split[5])
+		utils.DebugPrintf("target host:%s\n", split[4])
+		utils.DebugPrintf("target port:%s\n", split[5])
 		w.WriteHeader(http.StatusOK)
 		w.(http.Flusher).Flush()
 
 		s := r.Body.(http3.HTTPStreamer).HTTPStream()
 		d, ok := s.Datagrammer()
 		if !ok {
-			fmt.Println("convert to http3 Datagrammer error.")
+			utils.ErrorPrintf("convert to http3 Datagrammer error.")
 		}
 		//create a new proxy client
 		cl := new(proxy.ProxyClient)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"RFC9298proxy/utils"
 	"errors"
 	"fmt"
 	"net/http"
@@ -34,7 +35,7 @@ func doProxyReq(client *http.Client, targetHost string, targetPort string) (int,
 	URL += "/"
 	req, err := http.NewRequest(http.MethodConnect, URL, nil)
 	if err != nil {
-		fmt.Printf("err:%v\n", err)
+		utils.ErrorPrintf("http do request err:%v\n", err)
 		return 0, err
 	}
 	roundTripper, ok := client.Transport.(*http3.RoundTripper)
@@ -50,24 +51,10 @@ func doProxyReq(client *http.Client, targetHost string, targetPort string) (int,
 
 }
 
-func waterRead(ifce *water.Interface) {
-	for {
-		var buf ethernet.Frame
-		buf.Resize(1500)
-		n, err := ifce.Read(buf)
-		if err != nil {
-			fmt.Println("tun read err")
-		}
-		fmt.Printf("packet:%x\n", buf[:n])
-		fmt.Printf("len:%d\n", n)
-	}
-
-}
-
 func execCommand(cmd *exec.Cmd) {
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("exec command error!")
+		utils.ErrorPrintf("exec command error!")
 	}
 }
 
@@ -106,7 +93,7 @@ func ParseTargetIP(buf []byte) string {
 	}
 	x := int(IPbyte[3])
 	IPstring += strconv.Itoa(x)
-	// fmt.Printf("target ip:%s\n", IPstring)
+	utils.DebugLog("target ip:%s\n", IPstring)
 	return IPstring
 }
 
@@ -114,7 +101,7 @@ func ParseTargetPort(buf []byte) string {
 	Portbyte := buf[22:24]
 	port := int(Portbyte[0]) * 256
 	port += int(Portbyte[1])
-	// fmt.Printf("target port:%d\n", port)
+	utils.DebugLog("target port:%d\n", port)
 	return strconv.Itoa(port)
 }
 
@@ -128,7 +115,7 @@ func ParseSourceIP(buf []byte) string {
 	}
 	x := int(IPbyte[3])
 	IPstring += strconv.Itoa(x)
-	// fmt.Printf("source ip:%s\n", IPstring)
+	utils.DebugLog("source ip:%s\n", IPstring)
 	return IPstring
 }
 
@@ -136,7 +123,7 @@ func ParseSourcePort(buf []byte) string {
 	Portbyte := buf[20:22]
 	port := int(Portbyte[0]) * 256
 	port += int(Portbyte[1])
-	// fmt.Printf("source port:%d\n", port)
+	utils.DebugLog("source port:%d\n", port)
 	return strconv.Itoa(port)
 }
 
@@ -186,16 +173,16 @@ func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *wate
 	for {
 		data, err := d.ReceiveMessage(context.Background())
 		if err != nil {
-			fmt.Printf("downlink datagram receive message err:%v\n", err)
+			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
-		fmt.Printf("proxy client downlink got: %s\n", data)
+		utils.InfoLog("proxy client downlink got: %s\n", data)
 		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
 		if err != nil {
-			fmt.Printf("build UDP packet err: %v\n", err)
+			utils.ErrorPrintf("build UDP packet err: %v\n", err)
 		} else {
 			_, err := ifce.Write(UDPpacket)
 			if err != nil {
-				fmt.Printf("ifce Write err:%v\n", err)
+				utils.ErrorPrintf("ifce Write err:%v\n", err)
 			}
 		}
 	}
@@ -225,7 +212,7 @@ func main() {
 	}
 	ifce, err := water.New(tapconfig)
 	if err != nil {
-		fmt.Println("create new tun interface error.")
+		utils.ErrorPrintf("create new tun interface err:%v\n", err)
 	}
 	setRoute()
 	ProxyManager := make(map[string]http3.Datagrammer)
@@ -238,7 +225,7 @@ func main() {
 			buf.Resize(1024)
 			n, err := ifce.Read(buf)
 			if err != nil {
-				fmt.Println("tun read err")
+				utils.ErrorPrintf("tun read err:%v\n", err)
 			}
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
 				targetIP := ParseTargetIP(buf[:n])
@@ -259,7 +246,7 @@ func main() {
 					d.SendMessage(buf[28:n])
 				}
 			}
-			fmt.Printf("packet: %x\n", buf[:n])
+			utils.DebugLog("packet: %x\n", buf[:n])
 		}
 	}()
 	for {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"RFC9298proxy/utils"
 	"net"
 )
 
@@ -11,7 +11,7 @@ func main() {
 		Port: 40000,
 	})
 	if err != nil {
-		fmt.Println("listen failed, err:", err)
+		utils.ErrorPrintf("listen failed, err:", err)
 		return
 	}
 	defer listen.Close()
@@ -19,10 +19,10 @@ func main() {
 	for {
 		n, addr, err := listen.ReadFromUDP(data)
 		if err != nil {
-			fmt.Println("read udp failed, err:", err)
+			utils.ErrorPrintf("read udp failed, err:", err)
 			continue
 		}
-		fmt.Printf("got: %s\n", data[:n])
+		utils.InfoPrintf("got: %s\n", data[:n])
 		listen.WriteToUDP([]byte("server got data"), addr)
 	}
 }
