@@ -1,6 +1,7 @@
 package main
 
 import (
+	"RFC9298proxy/proxy"
 	"RFC9298proxy/utils"
 	"errors"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
-	"github.com/songgao/packets/ethernet"
 	"github.com/songgao/water"
 )
 
@@ -218,16 +218,31 @@ func main() {
 	ProxyManager := make(map[string]http3.Datagrammer)
 	//test, temporary variable
 	var src, dst *net.UDPAddr
+
+	p := &proxy.IPreorder{
+		ReorderedPacket: make(map[int][]byte),
+		FinishAssemble:  false,
+	}
 	//uplink
 	go func() {
+		buf := make([]byte, 65535)
 		for {
-			var buf ethernet.Frame
-			buf.Resize(1024)
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
 			}
+			utils.DebugPrintf("--------------------uplink read %d byte.--------------------\n", n)
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
+				fragment := p.CheckFragment(buf[:n])
+				// utils.DebugPrintf("packet payload: %x\n", buf[28:n])
+				if fragment {
+					if p.FinishAssemble {
+						targetPort := ParseTargetPort(p.Packet)
+						// utils.DebugPrintf("reassembled packet:%x\n", p.Packet)
+						utils.DebugPrintf("target port:%s\n", targetPort)
+					}
+					continue
+				}
 				targetIP := ParseTargetIP(buf[:n])
 				targetPort := ParseTargetPort(buf[:n])
 				targetAddr := targetIP + ":" + targetPort
@@ -238,6 +253,7 @@ func main() {
 					str := roundTripper.GetReqStream(id)
 					d, _ := str.Datagrammer()
 					ProxyManager[targetAddr] = d
+					d.SendMessage(buf[28:n])
 					//set the udp addr
 					src, dst = setUDPaddr(buf[:n])
 					//create the downlink go routine
@@ -246,7 +262,6 @@ func main() {
 					d.SendMessage(buf[28:n])
 				}
 			}
-			utils.DebugLog("packet: %x\n", buf[:n])
 		}
 	}()
 	for {

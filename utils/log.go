@@ -15,10 +15,10 @@ const (
 )
 
 // LogLevel of the runtime; if need to change it, modify it here.
-const ExecLogLevel LogLevel = LogLevelInfo
+const ExecLogLevel LogLevel = LogLevelDebug
 
 func ErrorLog(message string, args ...interface{}) {
-	if ExecLogLevel >= LogLevelDebug {
+	if ExecLogLevel >= LogLevelError {
 		log.Printf(message, args...)
 	}
 }
@@ -36,7 +36,7 @@ func DebugLog(message string, args ...interface{}) {
 }
 
 func ErrorPrintf(message string, args ...interface{}) {
-	if ExecLogLevel >= LogLevelDebug {
+	if ExecLogLevel >= LogLevelError {
 		fmt.Printf(message, args...)
 	}
 }
