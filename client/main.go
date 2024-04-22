@@ -234,33 +234,45 @@ func main() {
 			utils.DebugPrintf("--------------------uplink read %d byte.--------------------\n", n)
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
 				fragment := p.CheckFragment(buf[:n])
-				// utils.DebugPrintf("packet payload: %x\n", buf[28:n])
 				if fragment {
 					if p.FinishAssemble {
-						targetPort := ParseTargetPort(p.Packet)
-						// utils.DebugPrintf("reassembled packet:%x\n", p.Packet)
-						utils.DebugPrintf("target port:%s\n", targetPort)
+						buf = p.Packet
+						n = len(p.Packet)
+					} else {
+						continue
 					}
-					continue
 				}
-				targetIP := ParseTargetIP(buf[:n])
-				targetPort := ParseTargetPort(buf[:n])
+				targetIP := ParseTargetIP(buf[:20])
+				targetPort := ParseTargetPort(buf[:28])
 				targetAddr := targetIP + ":" + targetPort
 				d, ok := ProxyManager[targetAddr]
 				if !ok {
-					//do a proxy request and get the datagrammer.
+					// do a proxy request and get the datagrammer.
 					id, _ := doProxyReq(client, targetIP, targetPort)
 					str := roundTripper.GetReqStream(id)
-					d, _ := str.Datagrammer()
+					d, _ = str.Datagrammer()
 					ProxyManager[targetAddr] = d
-					d.SendMessage(buf[28:n])
-					//set the udp addr
-					src, dst = setUDPaddr(buf[:n])
-					//create the downlink go routine
+					// set the udp addr
+					src, dst = setUDPaddr(buf[:28])
+					// create the downlink go routine
 					go downlink(d, src, dst, ifce)
+				}
+				if n > 1024+28 {
+					buf = buf[28:n]
+					n = n - 28
+					fmt.Printf("n: %d\n", n)
+					var i int
+					for i = 0; i+1024 < n; i = i + 1024 {
+						j := i + 1024
+						data := make([]byte, 1024)
+						copy(data, buf[i:j])
+						d.SendMessage(data)
+					}
+					d.SendMessage(buf[i:n])
 				} else {
 					d.SendMessage(buf[28:n])
 				}
+
 			}
 		}
 	}()

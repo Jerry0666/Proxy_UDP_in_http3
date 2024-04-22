@@ -11,7 +11,7 @@ import (
 // create big message randomly, write it into file
 // and send it to the server.
 
-const messageLen int = 1024 * 5
+const messageLen int = 1024 * 20
 
 func main() {
 	socket, err := net.DialUDP("udp", nil, &net.UDPAddr{
@@ -41,7 +41,7 @@ func main() {
 			utils.InfoPrintf("send %d byte.\n", n)
 			utils.InfoPrintf("send data: %x\n", data)
 			i += n
-			if i == 5120 {
+			if i >= 20480 {
 				break
 			}
 		}

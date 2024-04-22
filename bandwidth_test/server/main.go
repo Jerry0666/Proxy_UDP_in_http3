@@ -15,7 +15,7 @@ func main() {
 		return
 	}
 	defer listen.Close()
-	data := make([]byte, 1024)
+	data := make([]byte, 2048)
 	bigMessage := make([]byte, 0)
 
 	for {
@@ -24,10 +24,9 @@ func main() {
 			utils.ErrorPrintf("read udp failed, err:", err)
 			continue
 		}
-		utils.InfoPrintf("target server got:%x\n", data)
+		utils.InfoPrintf("target server got:%x\n", data[:n])
 		bigMessage = append(bigMessage, data[:n]...)
 		utils.InfoPrintf("message len:%d\n", len(bigMessage))
-
 	}
 
 }
