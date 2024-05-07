@@ -48,7 +48,7 @@ func (p *IPreorder) CheckFragment(buf []byte) bool {
 		copy(p.Packet, p.ReorderedPacket[id])
 		p.FinishAssemble = true
 		utils.DebugPrintf("total packet len:%d\n", len(p.Packet))
-		utils.DebugPrintf("packet payload:%x\n", p.Packet)
+		// utils.DebugPrintf("packet payload:%x\n", p.Packet)
 		return true
 	}
 	utils.DebugPrintf("More Fragment bit is not set!\n")

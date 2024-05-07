@@ -4,6 +4,7 @@ ip link add client-eth0 type veth peer name br-veth0
 ip link add client-eth1 type veth peer name br-veth1
 ip link add server-eth0 type veth peer name br-veth2
 ip link add target-eth0 type veth peer name br-veth3
+ip link add target2-eth0 type veth peer name br-veth4
 
 ip netns add client
 ip link set dev client-eth0 netns client
@@ -22,6 +23,8 @@ ip link set dev target-eth0 netns target
 ip netns exec target ip link set lo up
 ip netns exec target ip link set target-eth0 up
 
+ip link set target2-eth0 up
+
 ip link set dev br-veth0 master mp-bridge
 ip link set dev br-veth1 master mp-bridge
 ip link set dev br-veth2 master mp-bridge
@@ -32,3 +35,8 @@ ip link set mp-bridge up
 
 ip link set dev br-veth3 master mp-bridge
 ip link set br-veth3 up
+
+ip link set dev br-veth4 master mp-bridge
+ip link set br-veth4 up
+ifconfig target2-eth0 201.0.0.1
+ip r add 100.0.0.1 dev target2-eth0

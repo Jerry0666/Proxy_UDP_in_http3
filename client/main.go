@@ -225,8 +225,8 @@ func main() {
 	}
 	//uplink
 	go func() {
-		buf := make([]byte, 65535)
 		for {
+			buf := make([]byte, 1500)
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
@@ -257,21 +257,26 @@ func main() {
 					// create the downlink go routine
 					go downlink(d, src, dst, ifce)
 				}
-				if n > 1024+28 {
+				if n > 1024 {
 					buf = buf[28:n]
 					n = n - 28
-					fmt.Printf("n: %d\n", n)
 					var i int
 					for i = 0; i+1024 < n; i = i + 1024 {
 						j := i + 1024
-						data := make([]byte, 1024)
+						data := make([]byte, 1025)
 						copy(data, buf[i:j])
+						data[1024] = 0xff // make a mark
 						d.SendMessage(data)
 					}
 					d.SendMessage(buf[i:n])
 				} else {
-					d.SendMessage(buf[28:n])
+					err := d.SendMessage(buf[28:n])
+					if err != nil {
+						fmt.Printf("send Message err:%v\n", err)
+					}
 				}
+				p.FinishAssemble = false
+				p.Packet = nil
 
 			}
 		}

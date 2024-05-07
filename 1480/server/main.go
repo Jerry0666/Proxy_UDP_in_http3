@@ -2,6 +2,7 @@ package main
 
 import (
 	"RFC9298proxy/utils"
+	"fmt"
 	"net"
 )
 
@@ -15,19 +16,16 @@ func main() {
 		return
 	}
 	defer listen.Close()
-	data := make([]byte, 70000)
-	bigMessage := make([]byte, 0)
 
-	i := 0
 	for {
-		i++
+		data := make([]byte, 1472)
 		n, _, err := listen.ReadFromUDP(data)
 		if err != nil {
 			utils.ErrorPrintf("read udp failed, err:", err)
 			continue
 		}
-		bigMessage = append(bigMessage, data[:n]...)
-		utils.InfoPrintf("i=%d read %d byte, message len:%d\n", i, n, len(bigMessage))
+		fmt.Printf("server read %d byte.\n", n)
+		fmt.Printf("data:%x\n", data)
 	}
 
 }

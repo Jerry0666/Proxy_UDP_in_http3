@@ -18,12 +18,28 @@ type ProxyClient struct {
 }
 
 func (c *ProxyClient) UplinkHandler() {
+	bigData := make([]byte, 0)
 	for {
 		data, err := c.Datagrammer.ReceiveMessage(context.Background())
 		if err != nil {
 			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
 		}
-		utils.InfoPrintf("proxy uplink got: %x\n", data)
+		dataLen := len(data)
+		if dataLen == 1025 && data[1024] == 0xff {
+			bigData = append(bigData, data[0:1024]...)
+			continue
+		} else {
+			if len(bigData) != 0 {
+				bigData = append(bigData, data...)
+				_, err := c.UDPsocket.Write(bigData)
+				if err != nil {
+					utils.ErrorPrintf("UDP write err:", err)
+					continue
+				}
+				bigData = make([]byte, 0)
+				continue
+			}
+		}
 		//forward data
 		n, err := c.UDPsocket.Write(data)
 		if err != nil {
@@ -41,7 +57,7 @@ func (c *ProxyClient) DownlinkHandler() {
 		if err != nil {
 			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
-		utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
+		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
 		err = c.Datagrammer.SendMessage(data[:n])
 		if err != nil {
 			utils.ErrorPrintf("downlink handler err:%v\n", err)
