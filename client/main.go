@@ -22,6 +22,7 @@ import (
 
 const proxyHost = "100.0.0.1"
 const proxyPort = "30000"
+const HttpDataLen = 1310
 
 func doProxyReq(client *http.Client, targetHost string, targetPort string) (int, error) {
 	URL := "https://"
@@ -171,7 +172,7 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 
 func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
 	for {
-		data, err := d.ReceiveMessage(context.Background())
+		data, err := d.HardcodedRead(context.Background())
 		if err != nil {
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
@@ -244,28 +245,32 @@ func main() {
 				}
 				targetIP := ParseTargetIP(buf[:20])
 				targetPort := ParseTargetPort(buf[:28])
-				targetAddr := targetIP + ":" + targetPort
-				d, ok := ProxyManager[targetAddr]
+				fiveTuple := targetIP + ":" + targetPort
+				sourceIP := ParseSourceIP(buf[:20])
+				sourcePort := ParseSourcePort(buf[:28])
+				fiveTuple += ","
+				fiveTuple += sourceIP + ":" + sourcePort
+				d, ok := ProxyManager[fiveTuple]
 				if !ok {
 					// do a proxy request and get the datagrammer.
 					id, _ := doProxyReq(client, targetIP, targetPort)
 					str := roundTripper.GetReqStream(id)
 					d, _ = str.Datagrammer()
-					ProxyManager[targetAddr] = d
+					ProxyManager[fiveTuple] = d
 					// set the udp addr
 					src, dst = setUDPaddr(buf[:28])
 					// create the downlink go routine
 					go downlink(d, src, dst, ifce)
 				}
-				if n > 1024 {
+				if n > HttpDataLen {
 					buf = buf[28:n]
 					n = n - 28
 					var i int
-					for i = 0; i+1024 < n; i = i + 1024 {
-						j := i + 1024
-						data := make([]byte, 1025)
+					for i = 0; i+HttpDataLen < n; i = i + HttpDataLen {
+						j := i + HttpDataLen
+						data := make([]byte, HttpDataLen)
 						copy(data, buf[i:j])
-						data[1024] = 0xff // make a mark
+						data[HttpDataLen] = 0xff // make a mark
 						d.SendMessage(data)
 					}
 					d.SendMessage(buf[i:n])

@@ -17,16 +17,18 @@ type ProxyClient struct {
 	UDPsocket   *net.UDPConn
 }
 
+const HttpDataLen = 1310
+
 func (c *ProxyClient) UplinkHandler() {
 	bigData := make([]byte, 0)
 	for {
-		data, err := c.Datagrammer.ReceiveMessage(context.Background())
+		data, err := c.Datagrammer.HardcodedRead(context.Background())
 		if err != nil {
 			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
 		}
 		dataLen := len(data)
-		if dataLen == 1025 && data[1024] == 0xff {
-			bigData = append(bigData, data[0:1024]...)
+		if dataLen == HttpDataLen+1 && data[HttpDataLen] == 0xff {
+			bigData = append(bigData, data[0:HttpDataLen]...)
 			continue
 		} else {
 			if len(bigData) != 0 {

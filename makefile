@@ -5,6 +5,10 @@ all:
 	cd application/client && go build;
 	cd application/server && go build;
 
+proxy: client/main.go server/main.go
+	cd client && go build;
+	cd server && go build;
+
 delete:
 	rm client/client;
 	rm server/server;
