@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net/http"
 	"os"
@@ -22,6 +23,7 @@ type requestLogger struct{}
 
 func main() {
 	datagramHandle := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("http handle function")
 		utils.DebugPrintf("URL PATH :%v\n", r.URL.Path)
 		path := r.URL.Path
 		split := strings.Split(path, "/")
@@ -30,21 +32,24 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.(http.Flusher).Flush()
 
-		s := r.Body.(http3.HTTPStreamer).HTTPStream()
-		d, ok := s.Datagrammer()
-		if !ok {
-			utils.ErrorPrintf("convert to http3 Datagrammer error.")
+		var s http3.Stream
+		var cl *proxy.ProxyClient
+		var d http3.Datagrammer
+		test := true
+		if test {
+			return
 		}
+
+		s = r.Body.(http3.HTTPStreamer).HTTPStream()
+		d, _ = s.Datagrammer()
+
 		//create a new proxy client
-		cl := new(proxy.ProxyClient)
+		cl = new(proxy.ProxyClient)
 		cl.Datagrammer = d
 		cl.Stream = s
 		cl.SetUDPconn(split[4], split[5])
 		go cl.UplinkHandler()
 		go cl.DownlinkHandler()
-		for {
-
-		}
 	})
 
 	server := http3.Server{
@@ -56,9 +61,18 @@ func main() {
 			EnableDatagrams: true,
 		},
 		EnableDatagrams: true,
+		C1:              make(chan struct{}),
 	}
 
-	server.ListenAndServe()
+	go server.ListenAndServe()
+	<-server.C1
+	fmt.Println("get client conn")
+	cl := new(proxy.ProxyClient)
+	cl.SetUDPconn("201.0.0.1", "7000")
+	cl.Conn = server.TempConn
+	go cl.DownlinkHandler()
+	cl.UplinkHandler()
+
 }
 
 // Setup a bare-bones TLS config for the server

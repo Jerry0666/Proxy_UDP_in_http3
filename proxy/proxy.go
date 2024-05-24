@@ -3,9 +3,11 @@ package proxy
 import (
 	"RFC9298proxy/utils"
 	"context"
+	"fmt"
 	"net"
 	"strconv"
 
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 )
 
@@ -15,32 +17,18 @@ type ProxyClient struct {
 	Stream      http3.Stream
 	Datagrammer http3.Datagrammer
 	UDPsocket   *net.UDPConn
+	Conn        quic.Connection
 }
 
 const HttpDataLen = 1310
 
 func (c *ProxyClient) UplinkHandler() {
-	bigData := make([]byte, 0)
+	Qconn := c.Conn
+	fmt.Println("get Qconn")
 	for {
-		data, err := c.Datagrammer.HardcodedRead(context.Background())
+		data, err := Qconn.ReceiveDatagram(context.Background())
 		if err != nil {
 			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
-		}
-		dataLen := len(data)
-		if dataLen == HttpDataLen+1 && data[HttpDataLen] == 0xff {
-			bigData = append(bigData, data[0:HttpDataLen]...)
-			continue
-		} else {
-			if len(bigData) != 0 {
-				bigData = append(bigData, data...)
-				_, err := c.UDPsocket.Write(bigData)
-				if err != nil {
-					utils.ErrorPrintf("UDP write err:", err)
-					continue
-				}
-				bigData = make([]byte, 0)
-				continue
-			}
 		}
 		//forward data
 		n, err := c.UDPsocket.Write(data)
@@ -53,14 +41,16 @@ func (c *ProxyClient) UplinkHandler() {
 }
 
 func (c *ProxyClient) DownlinkHandler() {
-	data := make([]byte, 1024)
+	data := make([]byte, 1500)
+	Qconn := c.Conn
+	fmt.Println("get Qconn")
 	for {
 		n, err := c.UDPsocket.Read(data)
 		if err != nil {
 			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
 		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
-		err = c.Datagrammer.SendMessage(data[:n])
+		err = Qconn.SendDatagram(data[:n])
 		if err != nil {
 			utils.ErrorPrintf("downlink handler err:%v\n", err)
 		}

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"RFC9298proxy/proxy"
 	"RFC9298proxy/utils"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"context"
 	"crypto/tls"
@@ -23,13 +23,17 @@ import (
 const proxyHost = "100.0.0.1"
 const proxyPort = "30000"
 const HttpDataLen = 1310
+const TestIP = "201.0.0.1"
+const TestPort = "7000"
 
 func main() {
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
+			NextProtos:         []string{"quic-echo-example"},
 		},
 		QuicConfig: &quic.Config{
+			KeepAlivePeriod: time.Minute * 5,
 			EnableDatagrams: true,
 		},
 		EnableDatagrams: true,
@@ -51,73 +55,55 @@ func main() {
 		utils.ErrorPrintf("create new tun interface err:%v\n", err)
 	}
 	setRoute()
-	ProxyManager := make(map[string]http3.Datagrammer)
+	//ProxyManager := make(map[string]http3.Datagrammer)
 	//test, temporary variable
 	var src, dst *net.UDPAddr
 
-	p := &proxy.IPreorder{
-		ReorderedPacket: make(map[int][]byte),
-		FinishAssemble:  false,
+	_, _ = doProxyReq(client, TestIP, TestPort)
+	var Qconn quic.Connection
+
+	Qconn = roundTripper.TempConn
+
+	if Qconn == nil {
+		fmt.Println("Qconn is nil")
+	} else {
+		fmt.Println("get the Qconn")
 	}
+
+	// s = rsp.Body.(http3.HTTPStreamer).HTTPStream()
+	// fmt.Println("get the http stream")
+	// d, ok = s.Datagrammer()
+	// if !ok {
+	// 	fmt.Println("get datagram error")
+	// }
+	// fmt.Println("get the datagram")
+
 	//uplink
 	go func() {
+		set := false
+
+		_, ok := Qconn.(quic.EarlyConnection)
+		if ok {
+			fmt.Println("connection is early connection")
+		}
+		buf := make([]byte, 1500)
 		for {
-			buf := make([]byte, 1500)
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
 			}
 			utils.DebugPrintf("--------------------uplink read %d byte.--------------------\n", n)
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
-				fragment := p.CheckFragment(buf[:n])
-				if fragment {
-					if p.FinishAssemble {
-						buf = p.Packet
-						n = len(p.Packet)
-					} else {
-						continue
-					}
-				}
-				targetIP := ParseTargetIP(buf[:20])
-				targetPort := ParseTargetPort(buf[:28])
-				fiveTuple := targetIP + ":" + targetPort
-				sourceIP := ParseSourceIP(buf[:20])
-				sourcePort := ParseSourcePort(buf[:28])
-				fiveTuple += ","
-				fiveTuple += sourceIP + ":" + sourcePort
-				d, ok := ProxyManager[fiveTuple]
-				if !ok {
-					// do a proxy request and get the datagrammer.
-					id, _ := doProxyReq(client, targetIP, targetPort)
-					str := roundTripper.GetReqStream(id)
-					d, _ = str.Datagrammer()
-					ProxyManager[fiveTuple] = d
-					// set the udp addr
+				if !set {
 					src, dst = setUDPaddr(buf[:28])
 					// create the downlink go routine
-					go downlink(d, src, dst, ifce)
+					go downlink(Qconn, src, dst, ifce)
+					set = true
 				}
-				if n > HttpDataLen {
-					buf = buf[28:n]
-					n = n - 28
-					var i int
-					for i = 0; i+HttpDataLen < n; i = i + HttpDataLen {
-						j := i + HttpDataLen
-						data := make([]byte, HttpDataLen)
-						copy(data, buf[i:j])
-						data[HttpDataLen] = 0xff // make a mark
-						d.SendMessage(data)
-					}
-					d.SendMessage(buf[i:n])
-				} else {
-					err := d.SendMessage(buf[28:n])
-					if err != nil {
-						fmt.Printf("send Message err:%v\n", err)
-					}
+				err := Qconn.SendDatagram(buf[28:n])
+				if err != nil {
+					fmt.Printf("send Message err:%v\n", err)
 				}
-				p.FinishAssemble = false
-				p.Packet = nil
-
 			}
 		}
 	}()
@@ -127,7 +113,20 @@ func main() {
 
 }
 
-func doProxyReq(client *http.Client, targetHost string, targetPort string) (int, error) {
+func makeReq(targetHost string, targetPort string) (*http.Request, error) {
+	URL := "https://"
+	URL += proxyHost
+	URL += ":"
+	URL += proxyPort
+	URL += "/.well-known/masque/udp/"
+	URL += targetHost
+	URL += "/"
+	URL += targetPort
+	URL += "/"
+	return http.NewRequest(http.MethodConnect, URL, nil)
+}
+
+func doProxyReq(client *http.Client, targetHost string, targetPort string) (*http.Response, error) {
 	URL := "https://"
 	URL += proxyHost
 	URL += ":"
@@ -140,19 +139,16 @@ func doProxyReq(client *http.Client, targetHost string, targetPort string) (int,
 	req, err := http.NewRequest(http.MethodConnect, URL, nil)
 	if err != nil {
 		utils.ErrorPrintf("http do request err:%v\n", err)
-		return 0, err
+		return nil, err
 	}
 	roundTripper, ok := client.Transport.(*http3.RoundTripper)
 	if !ok {
 		err := errors.New("doProxyReq retrive roundTripper error.")
-		return 0, err
+		return nil, err
 	}
 	roundTripper.AssignReqId(req)
-	id, _ := http3.GetReqId(req)
 	req.Proto = "connect-udp"
-	go client.Do(req)
-	return id, nil
-
+	return client.Do(req)
 }
 
 func execCommand(cmd *exec.Cmd) {
@@ -273,9 +269,10 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 	return src, dst
 }
 
-func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
+func downlink(Qconn quic.Connection, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
+
 	for {
-		data, err := d.HardcodedRead(context.Background())
+		data, err := Qconn.ReceiveDatagram(context.Background())
 		if err != nil {
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
