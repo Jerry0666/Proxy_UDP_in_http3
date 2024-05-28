@@ -22,36 +22,7 @@ import (
 type requestLogger struct{}
 
 func main() {
-	datagramHandle := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("http handle function")
-		utils.DebugPrintf("URL PATH :%v\n", r.URL.Path)
-		path := r.URL.Path
-		split := strings.Split(path, "/")
-		utils.DebugPrintf("target host:%s\n", split[4])
-		utils.DebugPrintf("target port:%s\n", split[5])
-		w.WriteHeader(http.StatusOK)
-		w.(http.Flusher).Flush()
-
-		var s http3.Stream
-		var cl *proxy.ProxyClient
-		var d http3.Datagrammer
-		test := true
-		if test {
-			return
-		}
-
-		s = r.Body.(http3.HTTPStreamer).HTTPStream()
-		d, _ = s.Datagrammer()
-
-		//create a new proxy client
-		cl = new(proxy.ProxyClient)
-		cl.Datagrammer = d
-		cl.Stream = s
-		cl.SetUDPconn(split[4], split[5])
-		go cl.UplinkHandler()
-		go cl.DownlinkHandler()
-	})
-
+	datagramHandle := http.HandlerFunc(handle)
 	server := http3.Server{
 		Handler:   datagramHandle,
 		Addr:      "0.0.0.0:30000",
@@ -73,6 +44,17 @@ func main() {
 	go cl.DownlinkHandler()
 	cl.UplinkHandler()
 
+}
+
+func handle(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("http handle function")
+	fmt.Printf("URL PATH :%v\n", r.URL.Path)
+	path := r.URL.Path
+	split := strings.Split(path, "/")
+	utils.DebugPrintf("target host:%s\n", split[4])
+	utils.DebugPrintf("target port:%s\n", split[5])
+	w.WriteHeader(http.StatusOK)
+	w.(http.Flusher).Flush()
 }
 
 // Setup a bare-bones TLS config for the server
