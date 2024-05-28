@@ -59,7 +59,7 @@ func main() {
 	//test, temporary variable
 	var src, dst *net.UDPAddr
 
-	_, _ = doProxyReq(client, TestIP, TestPort)
+	doProxyReq(client, TestIP, "8000")
 	var Qconn quic.Connection
 
 	Qconn = roundTripper.TempConn
@@ -70,18 +70,10 @@ func main() {
 		fmt.Println("get the Qconn")
 	}
 
-	// s = rsp.Body.(http3.HTTPStreamer).HTTPStream()
-	// fmt.Println("get the http stream")
-	// d, ok = s.Datagrammer()
-	// if !ok {
-	// 	fmt.Println("get datagram error")
-	// }
-	// fmt.Println("get the datagram")
-
 	//uplink
 	go func() {
 		set := false
-
+		var d http3.Datagrammer
 		_, ok := Qconn.(quic.EarlyConnection)
 		if ok {
 			fmt.Println("connection is early connection")
@@ -95,12 +87,17 @@ func main() {
 			utils.DebugPrintf("--------------------uplink read %d byte.--------------------\n", n)
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
 				if !set {
+					rsp, _ := doProxyReq(client, TestIP, "7000")
+					s := rsp.Body.(http3.HTTPStreamer).HTTPStream()
+					fmt.Println("get the http stream")
+					d, _ = s.Datagrammer()
+					fmt.Println("get the datagram")
 					src, dst = setUDPaddr(buf[:28])
 					// create the downlink go routine
 					go downlink(Qconn, src, dst, ifce)
 					set = true
 				}
-				err := Qconn.SendDatagram(buf[28:n])
+				err := d.SendMessage(buf[28:n])
 				if err != nil {
 					fmt.Printf("send Message err:%v\n", err)
 				}

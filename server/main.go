@@ -19,9 +19,11 @@ import (
 	"github.com/quic-go/quic-go/http3"
 )
 
-type requestLogger struct{}
+var clientChan chan *proxy.ProxyClient
 
 func main() {
+	clientChan = make(chan *proxy.ProxyClient, 10)
+	go proxyHandler()
 	datagramHandle := http.HandlerFunc(handle)
 	server := http3.Server{
 		Handler:   datagramHandle,
@@ -35,26 +37,40 @@ func main() {
 		C1:              make(chan struct{}),
 	}
 
-	go server.ListenAndServe()
-	<-server.C1
-	fmt.Println("get client conn")
-	cl := new(proxy.ProxyClient)
-	cl.SetUDPconn("201.0.0.1", "7000")
-	cl.Conn = server.TempConn
-	go cl.DownlinkHandler()
-	cl.UplinkHandler()
+	server.ListenAndServe()
 
 }
 
 func handle(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("http handle function")
 	fmt.Printf("URL PATH :%v\n", r.URL.Path)
+	cl := new(proxy.ProxyClient)
+	cl.SetUDPconn("201.0.0.1", "7000")
+	s := r.Body.(http3.HTTPStreamer).HTTPStream()
+	cl.Stream = s
+	cl.Datagrammer, _ = s.Datagrammer()
+	cl.Conn = cl.Datagrammer.GetQuicConn()
+	clientChan <- cl
 	path := r.URL.Path
 	split := strings.Split(path, "/")
 	utils.DebugPrintf("target host:%s\n", split[4])
 	utils.DebugPrintf("target port:%s\n", split[5])
 	w.WriteHeader(http.StatusOK)
 	w.(http.Flusher).Flush()
+}
+
+func proxyHandler() {
+	i := 0
+	for {
+		i++
+		cl := <-clientChan
+		fmt.Println("get proxy client")
+		if i == 2 {
+			go cl.DownlinkHandler()
+			go cl.UplinkHandler()
+		}
+	}
+
 }
 
 // Setup a bare-bones TLS config for the server

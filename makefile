@@ -12,8 +12,6 @@ proxy: client/main.go server/main.go
 delete:
 	rm client/client;
 	rm server/server;
-	rm application/server/server;
-	rm application/client/client;
 	rm -f server/tls_key.log;
 	rm 1480/client/client;
 	rm 1480/server/server;
