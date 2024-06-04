@@ -27,6 +27,7 @@ func (c *ProxyClient) UplinkHandler() {
 	fmt.Println("get Qconn")
 	for {
 		data, err := Qconn.ReceiveDatagram(context.Background())
+		data = data[1:]
 		if err != nil {
 			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
 		}
@@ -42,7 +43,7 @@ func (c *ProxyClient) UplinkHandler() {
 
 func (c *ProxyClient) DownlinkHandler() {
 	data := make([]byte, 1500)
-	Qconn := c.Conn
+	d := c.Datagrammer
 	fmt.Println("get Qconn")
 	for {
 		n, err := c.UDPsocket.Read(data)
@@ -50,8 +51,9 @@ func (c *ProxyClient) DownlinkHandler() {
 			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
 		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
-		err = Qconn.SendDatagram(data[:n])
+		err = d.SendMessage(data[:n])
 		if err != nil {
+			fmt.Println("downlink SendMessage error")
 			utils.ErrorPrintf("downlink handler err:%v\n", err)
 		}
 	}

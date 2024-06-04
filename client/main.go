@@ -90,7 +90,9 @@ func main() {
 					rsp, _ := doProxyReq(client, TestIP, "7000")
 					s := rsp.Body.(http3.HTTPStreamer).HTTPStream()
 					fmt.Println("get the http stream")
-					d, _ = s.Datagrammer()
+					var b bool
+					d, b = s.Datagrammer()
+					fmt.Printf("connection suport for datagram: %v\n", b)
 					fmt.Println("get the datagram")
 					src, dst = setUDPaddr(buf[:28])
 					// create the downlink go routine
@@ -271,8 +273,10 @@ func downlink(Qconn quic.Connection, appClient, appServer *net.UDPAddr, ifce *wa
 	for {
 		data, err := Qconn.ReceiveDatagram(context.Background())
 		if err != nil {
+			fmt.Println("downlink datagram receive message err")
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
+		data = data[1:]
 		utils.InfoLog("proxy client downlink got: %s\n", data)
 		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
 		if err != nil {

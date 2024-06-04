@@ -11,7 +11,7 @@ import (
 // create big message randomly, write it into file
 // and send it to the server.
 
-const messageLen int = 1472
+const messageLen int = 1300
 
 func main() {
 	socket, err := net.DialUDP("udp", nil, &net.UDPAddr{

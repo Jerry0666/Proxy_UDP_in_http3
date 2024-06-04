@@ -9,7 +9,7 @@ import (
 func main() {
 	listen, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.IPv4(0, 0, 0, 0),
-		Port: 40000,
+		Port: 7000,
 	})
 	if err != nil {
 		utils.ErrorPrintf("listen failed, err:", err)
@@ -18,7 +18,7 @@ func main() {
 	defer listen.Close()
 
 	for {
-		data := make([]byte, 1472)
+		data := make([]byte, 1300)
 		n, _, err := listen.ReadFromUDP(data)
 		if err != nil {
 			utils.ErrorPrintf("read udp failed, err:", err)

@@ -9,6 +9,11 @@ proxy: client/main.go server/main.go
 	cd client && go build;
 	cd server && go build;
 
+deleteProxy:
+	rm client/client;
+	rm server/server;
+	rm -f server/tls_key.log;
+	
 delete:
 	rm client/client;
 	rm server/server;
