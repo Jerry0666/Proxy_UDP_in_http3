@@ -45,7 +45,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("http handle function")
 	fmt.Printf("URL PATH :%v\n", r.URL.Path)
 	cl := new(proxy.ProxyClient)
-	cl.SetUDPconn("201.0.0.1", "7000")
+
 	s := r.Body.(http3.HTTPStreamer).HTTPStream()
 	cl.Stream = s
 	cl.Datagrammer, _ = s.Datagrammer()
@@ -53,6 +53,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	clientChan <- cl
 	path := r.URL.Path
 	split := strings.Split(path, "/")
+	cl.SetUDPconn(split[4], split[5])
 	utils.DebugPrintf("target host:%s\n", split[4])
 	utils.DebugPrintf("target port:%s\n", split[5])
 	w.WriteHeader(http.StatusOK)
@@ -60,15 +61,12 @@ func handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyHandler() {
-	i := 0
+
 	for {
-		i++
 		cl := <-clientChan
 		fmt.Println("get proxy client")
-		if i == 2 {
-			go cl.DownlinkHandler()
-			go cl.UplinkHandler()
-		}
+		go cl.DownlinkHandler()
+		go cl.UplinkHandler()
 	}
 
 }

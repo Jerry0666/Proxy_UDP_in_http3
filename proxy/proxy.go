@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"RFC9298proxy/utils"
-	"context"
 	"fmt"
 	"net"
 	"strconv"
@@ -23,11 +22,10 @@ type ProxyClient struct {
 const HttpDataLen = 1310
 
 func (c *ProxyClient) UplinkHandler() {
-	Qconn := c.Conn
 	fmt.Println("get Qconn")
+	d := c.Datagrammer
 	for {
-		data, err := Qconn.ReceiveDatagram(context.Background())
-		data = data[1:]
+		data, err := d.ReceiveMessage()
 		if err != nil {
 			utils.ErrorPrintf("UplinkHandler err:%v\n", err)
 		}

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"context"
 	"crypto/tls"
 	"net"
 	"os/exec"
@@ -55,10 +54,8 @@ func main() {
 		utils.ErrorPrintf("create new tun interface err:%v\n", err)
 	}
 	setRoute()
-	//ProxyManager := make(map[string]http3.Datagrammer)
-	//test, temporary variable
+	ProxyManager := make(map[string]http3.Datagrammer)
 	var src, dst *net.UDPAddr
-
 	doProxyReq(client, TestIP, "8000")
 	var Qconn quic.Connection
 
@@ -72,8 +69,7 @@ func main() {
 
 	//uplink
 	go func() {
-		set := false
-		var d http3.Datagrammer
+
 		_, ok := Qconn.(quic.EarlyConnection)
 		if ok {
 			fmt.Println("connection is early connection")
@@ -86,18 +82,31 @@ func main() {
 			}
 			utils.DebugPrintf("--------------------uplink read %d byte.--------------------\n", n)
 			if IsIPv4(buf[:n]) && IsUDP(buf[:n]) {
-				if !set {
-					rsp, _ := doProxyReq(client, TestIP, "7000")
+				sourceIP := ParseSourceIP(buf[:28])
+				sourcePort := ParseSourcePort(buf[:28])
+				targetIP := ParseTargetIP(buf[:28])
+				targetPort := ParseTargetPort(buf[:28])
+				ConnTuple := ""
+				ConnTuple += sourceIP
+				ConnTuple += ":"
+				ConnTuple += sourcePort
+				ConnTuple += "->"
+				ConnTuple += targetIP
+				ConnTuple += ":"
+				ConnTuple += targetPort
+				d, ok := ProxyManager[ConnTuple]
+				if !ok {
+					fmt.Println("datagram not set yet.")
+					fmt.Printf("connection four tuple is: %s \n", ConnTuple)
+					rsp, _ := doProxyReq(client, targetIP, targetPort)
 					s := rsp.Body.(http3.HTTPStreamer).HTTPStream()
 					fmt.Println("get the http stream")
-					var b bool
-					d, b = s.Datagrammer()
-					fmt.Printf("connection suport for datagram: %v\n", b)
+					d, _ = s.Datagrammer()
+					ProxyManager[ConnTuple] = d
 					fmt.Println("get the datagram")
 					src, dst = setUDPaddr(buf[:28])
 					// create the downlink go routine
-					go downlink(Qconn, src, dst, ifce)
-					set = true
+					go downlink(d, src, dst, ifce)
 				}
 				err := d.SendMessage(buf[28:n])
 				if err != nil {
@@ -268,15 +277,14 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 	return src, dst
 }
 
-func downlink(Qconn quic.Connection, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
+func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
 
 	for {
-		data, err := Qconn.ReceiveDatagram(context.Background())
+		data, err := d.ReceiveMessage()
 		if err != nil {
 			fmt.Println("downlink datagram receive message err")
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
-		data = data[1:]
 		utils.InfoLog("proxy client downlink got: %s\n", data)
 		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
 		if err != nil {
