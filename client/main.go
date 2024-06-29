@@ -26,6 +26,7 @@ const TestIP = "201.0.0.1"
 const TestPort = "7000"
 
 func main() {
+	udpaddr, _ := net.ResolveUDPAddr("udp4", "10.0.0.1:9000")
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -37,6 +38,7 @@ func main() {
 		},
 		EnableDatagrams: true,
 		ReqId:           0,
+		DefaultAddr:     udpaddr,
 	}
 	client := &http.Client{
 		Transport: roundTripper,
@@ -57,9 +59,13 @@ func main() {
 	ProxyManager := make(map[string]http3.Datagrammer)
 	var src, dst *net.UDPAddr
 	doProxyReq(client, TestIP, "8000")
-	var Qconn quic.Connection
+	// get quic connection transport
+	tr := roundTripper.GetTransport()
+	if tr != nil {
+		tr.SetBackupConn("11.0.0.1", 7000)
+	}
 
-	Qconn = roundTripper.TempConn
+	var Qconn quic.Connection = roundTripper.TempConn
 
 	if Qconn == nil {
 		fmt.Println("Qconn is nil")
@@ -70,12 +76,15 @@ func main() {
 	//uplink
 	go func() {
 
-		_, ok := Qconn.(quic.EarlyConnection)
-		if ok {
-			fmt.Println("connection is early connection")
-		}
+		i := 0
 		buf := make([]byte, 1500)
 		for {
+			i++
+			if i == 50000 {
+				fmt.Println("i > 50000")
+				fmt.Println("probe the path!")
+				Qconn.ProbePath(tr)
+			}
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)

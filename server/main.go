@@ -34,7 +34,6 @@ func main() {
 			EnableDatagrams: true,
 		},
 		EnableDatagrams: true,
-		C1:              make(chan struct{}),
 	}
 
 	server.ListenAndServe()
