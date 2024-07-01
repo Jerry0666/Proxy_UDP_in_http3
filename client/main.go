@@ -65,13 +65,16 @@ func main() {
 		tr.SetBackupConn("11.0.0.1", 7000)
 	}
 
-	var Qconn quic.Connection = roundTripper.TempConn
+	var Qconn quic.MPConnection = roundTripper.TempConn
 
 	if Qconn == nil {
 		fmt.Println("Qconn is nil")
 	} else {
 		fmt.Println("get the Qconn")
 	}
+
+	Qconn.ProbePath(tr)
+	Qconn.SendPathChallenge()
 
 	//uplink
 	go func() {
@@ -80,11 +83,6 @@ func main() {
 		buf := make([]byte, 1500)
 		for {
 			i++
-			if i == 50000 {
-				fmt.Println("i > 50000")
-				fmt.Println("probe the path!")
-				Qconn.ProbePath(tr)
-			}
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
@@ -108,6 +106,9 @@ func main() {
 					fmt.Println("datagram not set yet.")
 					fmt.Printf("connection four tuple is: %s \n", ConnTuple)
 					rsp, _ := doProxyReq(client, targetIP, targetPort)
+					if rsp == nil {
+						fmt.Println("rsp is nil!")
+					}
 					s := rsp.Body.(http3.HTTPStreamer).HTTPStream()
 					fmt.Println("get the http stream")
 					d, _ = s.Datagrammer()
@@ -128,19 +129,6 @@ func main() {
 
 	}
 
-}
-
-func makeReq(targetHost string, targetPort string) (*http.Request, error) {
-	URL := "https://"
-	URL += proxyHost
-	URL += ":"
-	URL += proxyPort
-	URL += "/.well-known/masque/udp/"
-	URL += targetHost
-	URL += "/"
-	URL += targetPort
-	URL += "/"
-	return http.NewRequest(http.MethodConnect, URL, nil)
 }
 
 func doProxyReq(client *http.Client, targetHost string, targetPort string) (*http.Response, error) {
