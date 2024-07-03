@@ -61,9 +61,9 @@ func main() {
 	doProxyReq(client, TestIP, "8000")
 	// get quic connection transport
 	tr := roundTripper.GetTransport()
-	if tr != nil {
-		tr.SetBackupConn("11.0.0.1", 7000)
-	}
+	// if tr != nil {
+	// 	tr.SetBackupConn("11.0.0.1", 7000)
+	// }
 
 	var Qconn quic.MPConnection = roundTripper.TempConn
 
@@ -73,8 +73,12 @@ func main() {
 		fmt.Println("get the Qconn")
 	}
 
-	Qconn.ProbePath(tr)
-	Qconn.SendPathChallenge()
+	fmt.Printf("remote addr :%s\n", Qconn.RemoteAddr().String())
+	path := quic.NewPath(tr, Qconn.RemoteAddr())
+	path.SetIP("11.0.0.1", 7000)
+
+	// Qconn.ProbePath(tr)
+	Qconn.SendPathChallenge(path)
 
 	//uplink
 	go func() {
@@ -83,6 +87,10 @@ func main() {
 		buf := make([]byte, 1500)
 		for {
 			i++
+			if i == 5000 {
+				fmt.Println("i >= 5000, do Migration.")
+				Qconn.Migration(path)
+			}
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
