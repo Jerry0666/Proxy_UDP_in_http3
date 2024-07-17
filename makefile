@@ -22,3 +22,9 @@ delete:
 	rm 1480/server/server;
 	rm bandwidth_test/client/client;
 	rm bandwidth_test/server/server;
+
+server:
+	iperf -s -u -p 8000 -i 1 -l 1300
+
+client:
+	iperf -c 201.0.0.1 -u -p 8000 -l 1300 -i 1 -b 10M -t 20
