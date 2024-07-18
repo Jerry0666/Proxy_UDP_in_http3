@@ -8,10 +8,12 @@ all:
 proxy: client/main.go server/main.go
 	cd client && go build;
 	cd server && go build;
+	cd control && go build;
 
 deleteProxy:
 	rm client/client;
 	rm server/server;
+	rm control/control;
 	rm -f server/tls_key.log;
 	
 delete:

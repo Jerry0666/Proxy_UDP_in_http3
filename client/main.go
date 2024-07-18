@@ -76,9 +76,19 @@ func main() {
 	fmt.Printf("[proxy]remote addr:%s\n", Qconn.RemoteAddr().String())
 	path := quic.NewPath(tr, Qconn.RemoteAddr(), true)
 	path.SetIP("11.0.0.1", 7000)
+	path.Status = quic.PathStatusProbing
 
 	// Qconn.ProbePath(tr)
 	Qconn.SendPathChallenge(path)
+	Qconn.RecordPath(path)
+
+	// Add the control plane server
+	controlServer, err := net.ListenPacket("udp", "127.0.0.1:8964")
+	if err != nil {
+		fmt.Println("open control socket error!")
+	}
+
+	go readCommand(controlServer, Qconn)
 
 	//uplink
 	go func() {
@@ -94,6 +104,10 @@ func main() {
 			if i == 8000 {
 				fmt.Println("i == 8000, migration back")
 				Qconn.Migration(OriginalPath)
+			}
+			if i == 12000 {
+				fmt.Println("i == 12000, migration")
+				Qconn.Migration(path)
 			}
 			n, err := ifce.Read(buf)
 			if err != nil {
@@ -120,6 +134,7 @@ func main() {
 					rsp, _ := doProxyReq(client, targetIP, targetPort)
 					if rsp == nil {
 						fmt.Println("rsp is nil!")
+						break
 					}
 					s := rsp.Body.(http3.HTTPStreamer).HTTPStream()
 					fmt.Println("get the http stream")
@@ -138,6 +153,33 @@ func main() {
 		}
 	}()
 	for {
+
+	}
+
+}
+
+// read control command
+func readCommand(c net.PacketConn, QConn quic.MPConnection) {
+	fmt.Println("read command start...")
+	buf := make([]byte, 1024)
+	for {
+		n, addr, err := c.ReadFrom(buf)
+		if err != nil {
+			fmt.Println("[control] read error")
+		}
+		convertString := string(buf[:n])
+		prefix := convertString[:6]
+		if prefix == "[task]" {
+			fmt.Println("find a task")
+			suffix := convertString[6:n]
+			switch suffix {
+			case " check all path status":
+				fmt.Println("check the path status")
+				status := QConn.CheckStatus()
+				fmt.Printf("%s", status)
+				c.WriteTo([]byte(status), addr)
+			}
+		}
 
 	}
 
