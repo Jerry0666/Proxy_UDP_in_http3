@@ -9,8 +9,10 @@ import (
 
 	"crypto/tls"
 	"net"
+	"net/netip"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -95,20 +97,11 @@ func main() {
 
 		i := 0
 		buf := make([]byte, 1500)
+		if OriginalPath == nil {
+			fmt.Println("Original Path is nil.")
+		}
 		for {
 			i++
-			if i == 4000 {
-				fmt.Println("i >= 4000, do Migration.")
-				Qconn.Migration(path)
-			}
-			if i == 8000 {
-				fmt.Println("i == 8000, migration back")
-				Qconn.Migration(OriginalPath)
-			}
-			if i == 12000 {
-				fmt.Println("i == 12000, migration")
-				Qconn.Migration(path)
-			}
 			n, err := ifce.Read(buf)
 			if err != nil {
 				utils.ErrorPrintf("tun read err:%v\n", err)
@@ -171,13 +164,40 @@ func readCommand(c net.PacketConn, QConn quic.MPConnection) {
 		prefix := convertString[:6]
 		if prefix == "[task]" {
 			fmt.Println("find a task")
-			suffix := convertString[6:n]
+			suffix := convertString[6:13]
 			switch suffix {
-			case " check all path status":
+			case "[check]":
 				fmt.Println("check the path status")
 				status := QConn.CheckStatus()
 				fmt.Printf("%s", status)
 				c.WriteTo([]byte(status), addr)
+			case "[migra]":
+				fmt.Println("migration to specific path")
+				pathIP := convertString[13:n]
+				fmt.Printf("pathIP:%s\n", pathIP)
+				//check ip contain the port
+				if !strings.Contains(pathIP, ":") {
+					//not contain the port, check if it is a IPv4 string
+					_, err := netip.ParseAddr(pathIP)
+					if err != nil {
+						fmt.Println("[error] It is not a valid ip.")
+					}
+				}
+				path := QConn.GetPathByIp(pathIP)
+				if path == nil {
+					fmt.Println("[error] path is nil")
+					c.WriteTo([]byte("migrate failure"), addr)
+					continue
+				}
+				// should check other condition
+				if path.Status == quic.PathStatusActive {
+					fmt.Println("[warning] path already active")
+					c.WriteTo([]byte("the path is already active"), addr)
+					continue
+				}
+				fmt.Println("everything is ok, do the migration.")
+				c.WriteTo([]byte("migrate success"), addr)
+				QConn.Migration(path)
 			}
 		}
 

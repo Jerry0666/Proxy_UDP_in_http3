@@ -26,12 +26,22 @@ func main() {
 			help()
 		case "c":
 			fmt.Println("check all path status...")
-			conn.Write([]byte("[task] check all path status"))
+			conn.Write([]byte("[task][check]"))
 			status := make([]byte, 1024)
 			n, _ := conn.Read(status)
 			fmt.Printf("%s", status[:n])
 		case "m":
 			fmt.Println("migrate to specific path...")
+			var pathStr string
+			fmt.Print("Please enter the Path IP (local):")
+			fmt.Scan(&pathStr)
+			Command := ""
+			Command += "[task][migra]"
+			Command += pathStr
+			conn.Write([]byte(Command))
+			result := make([]byte, 1024)
+			n, _ := conn.Read(result)
+			fmt.Printf("result:%s\n", result[:n])
 		default:
 			fmt.Println("Unknown task!")
 		}
