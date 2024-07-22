@@ -79,8 +79,12 @@ func main() {
 	path := quic.NewPath(tr, Qconn.RemoteAddr(), true)
 	path.SetIP("11.0.0.1", 7000)
 	path.Status = quic.PathStatusProbing
+	// set the path connection id
+	err = Qconn.SetPathConnId(path)
+	if err != nil {
+		fmt.Printf("[error] %v\n", err)
+	}
 
-	// Qconn.ProbePath(tr)
 	Qconn.SendPathChallenge(path)
 	Qconn.RecordPath(path)
 
