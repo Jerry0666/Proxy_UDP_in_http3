@@ -200,8 +200,12 @@ func readCommand(c net.PacketConn, QConn quic.MPConnection) {
 					continue
 				}
 				fmt.Println("everything is ok, do the migration.")
-				c.WriteTo([]byte("migrate success"), addr)
-				QConn.Migration(path)
+				err = QConn.Migration(path)
+				if err != nil {
+					c.WriteTo([]byte("migrate failure"), addr)
+				} else {
+					c.WriteTo([]byte("migrate success"), addr)
+				}
 			}
 		}
 
