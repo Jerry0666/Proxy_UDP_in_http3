@@ -21,14 +21,14 @@ import (
 	"github.com/songgao/water"
 )
 
-const proxyHost = "100.0.0.1"
+const proxyHost = "192.168.5.1"
 const proxyPort = "30000"
 const HttpDataLen = 1310
 const TestIP = "201.0.0.1"
 const TestPort = "7000"
 
 func main() {
-	udpaddr, _ := net.ResolveUDPAddr("udp4", "10.0.0.1:9000")
+	udpaddr, _ := net.ResolveUDPAddr("udp4", "172.16.0.2:9000")
 	roundTripper := &http3.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -77,7 +77,7 @@ func main() {
 
 	fmt.Printf("[proxy]remote addr:%s\n", Qconn.RemoteAddr().String())
 	path := quic.NewPath(tr, Qconn.RemoteAddr(), true)
-	path.SetIP("11.0.0.1", 7000)
+	path.SetIP("172.16.0.3", 7000)
 	path.Status = quic.PathStatusProbing
 	// set the path connection id
 	err = Qconn.SetPathConnId(path)
@@ -250,7 +250,7 @@ func setRoute() {
 	execCommand(cmd)
 	cmd = exec.Command("ip", "link", "set", "tun0", "up")
 	execCommand(cmd)
-	cmd = exec.Command("ip", "r", "replace", "default", "dev", "tun0")
+	cmd = exec.Command("ip", "r", "add", "201.0.0.1", "dev", "tun0")
 	execCommand(cmd)
 }
 
