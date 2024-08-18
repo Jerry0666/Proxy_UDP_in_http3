@@ -44,8 +44,12 @@ func (c *ProxyClient) DownlinkHandler() {
 	d := c.Datagrammer
 	fmt.Println("get Qconn")
 	for {
+		if c.UDPsocket == nil {
+			fmt.Println("[error] UDPsocket is nil.")
+		}
 		n, err := c.UDPsocket.Read(data)
 		if err != nil {
+			fmt.Printf("UDPsocket read err:%v\n", err)
 			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
 		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
@@ -58,6 +62,7 @@ func (c *ProxyClient) DownlinkHandler() {
 }
 
 func (c *ProxyClient) SetUDPconn(targetIP string, targetPort string) {
+	fmt.Println("[debug] SetUDPconn")
 	ip := net.ParseIP(targetIP)
 	port, err := strconv.Atoi(targetPort)
 	if err != nil {
@@ -69,6 +74,7 @@ func (c *ProxyClient) SetUDPconn(targetIP string, targetPort string) {
 		Port: port,
 	})
 	if err != nil {
+		fmt.Printf("[error] connect to server err:", err)
 		utils.ErrorPrintf("connect to server err:", err)
 		return
 	}

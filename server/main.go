@@ -27,7 +27,7 @@ func main() {
 	datagramHandle := http.HandlerFunc(handle)
 	server := http3.Server{
 		Handler:   datagramHandle,
-		Addr:      "0.0.0.0:30000",
+		Addr:      "192.168.5.1:30000",
 		TLSConfig: http3.ConfigureTLSConfig(generateTLSConfig()), // use your tls.Config here
 		QuicConfig: &quic.Config{
 			KeepAlivePeriod: time.Minute * 5,
@@ -49,10 +49,10 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	cl.Stream = s
 	cl.Datagrammer, _ = s.Datagrammer()
 	cl.Conn = cl.Datagrammer.GetQuicConn()
-	clientChan <- cl
 	path := r.URL.Path
 	split := strings.Split(path, "/")
 	cl.SetUDPconn(split[4], split[5])
+	clientChan <- cl
 	utils.DebugPrintf("target host:%s\n", split[4])
 	utils.DebugPrintf("target port:%s\n", split[5])
 	w.WriteHeader(http.StatusOK)
