@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"RFC9298proxy/utils"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -43,6 +44,8 @@ func (c *ProxyClient) DownlinkHandler() {
 	data := make([]byte, 1500)
 	d := c.Datagrammer
 	fmt.Println("get Qconn")
+	var packet_number uint32 = 0
+	var contextId uint32
 	for {
 		if c.UDPsocket == nil {
 			fmt.Println("[error] UDPsocket is nil.")
@@ -52,8 +55,15 @@ func (c *ProxyClient) DownlinkHandler() {
 			fmt.Printf("UDPsocket read err:%v\n", err)
 			utils.ErrorPrintf("UDPsocket read err:%v\n", err)
 		}
-		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
-		err = d.SendMessage(data[:n])
+		// add context id
+		contextId = packet_number*2 + 1
+		packet_number++
+		contextIdByte := make([]byte, 8)
+		binary.BigEndian.PutUint32(contextIdByte[4:8], contextId)
+		sendData := make([]byte, n+8)
+		copy(sendData[:8], contextIdByte)
+		copy(sendData[8:n+8], data)
+		err = d.SendMessage(sendData)
 		if err != nil {
 			fmt.Println("downlink SendMessage error")
 			utils.ErrorPrintf("downlink handler err:%v\n", err)
