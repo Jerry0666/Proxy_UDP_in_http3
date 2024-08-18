@@ -2,6 +2,7 @@ package main
 
 import (
 	"RFC9298proxy/utils"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -357,7 +358,8 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 }
 
 func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
-
+	expected := 0
+	reorderBuffer := make(map[uint32][]byte)
 	for {
 		data, err := d.ReceiveMessage()
 		if err != nil {
@@ -365,7 +367,18 @@ func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *wate
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
 		utils.InfoLog("proxy client downlink got: %s\n", data)
-		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
+		contextId := binary.BigEndian.Uint32(data[4:8])
+		contextId--
+		packetNumber := contextId / 2
+		if packetNumber != uint32(expected) {
+			// fmt.Printf("out of order! packetNumber:%d, expected:%d\n", packetNumber, expected)
+			// store data into reorderBuffer
+			reorderBuffer[packetNumber] = make([]byte, len(data))
+			copy(reorderBuffer[packetNumber], data)
+			// not increase expected
+			continue
+		}
+		UDPpacket, err := buildUDPPacket(appClient, appServer, data[8:])
 		if err != nil {
 			utils.ErrorPrintf("build UDP packet err: %v\n", err)
 		} else {
@@ -373,6 +386,22 @@ func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *wate
 			if err != nil {
 				utils.ErrorPrintf("ifce Write err:%v\n", err)
 			}
+		}
+		expected++
+		buffered, ok := reorderBuffer[uint32(expected)]
+		for ok {
+			// fmt.Println("find a previous buffered packet can send now!")
+			UDPpacket, err := buildUDPPacket(appClient, appServer, buffered[8:])
+			if err != nil {
+				utils.ErrorPrintf("build UDP packet err: %v\n", err)
+			} else {
+				_, err := ifce.Write(UDPpacket)
+				if err != nil {
+					utils.ErrorPrintf("ifce Write err:%v\n", err)
+				}
+			}
+			expected++
+			buffered, ok = reorderBuffer[uint32(expected)]
 		}
 	}
 }
