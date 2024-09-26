@@ -55,7 +55,7 @@ func (c *ProxyClient) DownlinkHandler() {
 		// utils.InfoPrintf("proxy downlink got: %x\n", data[:n])
 		err = d.SendMessage(data[:n])
 		if err != nil {
-			fmt.Println("downlink SendMessage error")
+			// fmt.Println("downlink SendMessage error")
 			utils.ErrorPrintf("downlink handler err:%v\n", err)
 		}
 	}

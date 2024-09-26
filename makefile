@@ -22,7 +22,8 @@ delete:
 	rm control/control;
 
 server:
-	iperf -s -u -p 8000 -i 1 -l 1200
+	iperf -s -u -p 8000 -i 1 -l 1200 -B 192.168.5.1
+	iperf -s -u -p 8000 -i 1 -l 1200 -B 201.0.0.1
 
 client:
-	iperf -c 201.0.0.1 -u -p 8000 -l 1300 -i 1 -b 1M -t 60
+	iperf -c 201.0.0.1 -u -p 8000 -l 1200 -i 1 -b 1M -t 60
