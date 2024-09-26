@@ -144,7 +144,7 @@ func main() {
 				}
 				err := d.SendMessage(buf[28:n])
 				if err != nil {
-					fmt.Printf("send Message err:%v\n", err)
+					// fmt.Printf("send Message err:%v\n", err)
 				}
 			}
 		}
