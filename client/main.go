@@ -357,13 +357,20 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 }
 
 func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
-
+	go d.SetReadTimeOut(30 * time.Second)
+	i := 0
 	for {
 		data, err := d.ReceiveMessage()
 		if err != nil {
-			fmt.Println("downlink datagram receive message err")
+			errMessage := err.Error()
+			fmt.Printf("[debug] errMessage is %s\n", errMessage)
+			if errMessage == "timeout" {
+				fmt.Println("[CWND] timeout, break")
+				break
+			}
 			utils.ErrorPrintf("downlink datagram receive message err:%v\n", err)
 		}
+		i++
 		utils.InfoLog("proxy client downlink got: %s\n", data)
 		UDPpacket, err := buildUDPPacket(appClient, appServer, data)
 		if err != nil {
@@ -375,4 +382,5 @@ func downlink(d http3.Datagrammer, appClient, appServer *net.UDPAddr, ifce *wate
 			}
 		}
 	}
+	fmt.Printf("[CWND] proxy client total receive: %d\n", i)
 }
