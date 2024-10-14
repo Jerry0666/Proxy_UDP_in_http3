@@ -3,15 +3,35 @@ package main
 import (
 	"fmt"
 	"net"
-	"time"
+	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
-func main() {
-	// create UDP socket to proxy
-	raddr, _ := net.ResolveUDPAddr("udp4", "172.16.0.2:9000")
-	laddr, _ := net.ResolveUDPAddr("udp4", "192.168.5.1:7000")
+type conf struct {
+	LocalAddr  string `yaml:"localAddr"`
+	RemoteAddr string `yaml:"remoteAddr"`
+}
 
-	socket, _ := net.DialUDP("udp", laddr, raddr)
+func main() {
+	yamlFile, err := os.ReadFile("../../config.yaml")
+	if err != nil {
+		fmt.Printf("yamlFile.Get err   #%v ", err)
+	}
+	var c conf
+	err = yaml.Unmarshal(yamlFile, &c)
+	if err != nil {
+		fmt.Printf("yaml unmarshal err:%v\n", err)
+	}
+	fmt.Printf("config: %+v\n", c)
+	// create UDP socket to proxy
+	raddr, _ := net.ResolveUDPAddr("udp4", c.RemoteAddr)
+	laddr, _ := net.ResolveUDPAddr("udp4", c.LocalAddr)
+
+	socket, err := net.DialUDP("udp", laddr, raddr)
+	if err != nil {
+		fmt.Printf("UDP socket create err:%v\n", err)
+	}
 	data := make([]byte, 1500)
 	n, _ := socket.Read(data)
 	fmt.Println("receive tuple:")
@@ -30,7 +50,10 @@ func main() {
 	go func() {
 		data := make([]byte, 1500)
 		for {
-			n, _ := socket.Read(data)
+			n, err := socket.Read(data)
+			if err != nil {
+				fmt.Printf("UDP socket read err:%v\n", err)
+			}
 			iperfSocket.Write(data[:n])
 		}
 	}()
@@ -39,7 +62,6 @@ func main() {
 	go func() {
 		data := make([]byte, 1500)
 		for {
-			iperfSocket.SetReadDeadline(time.Now().Add(5 * time.Second))
 			n, err := iperfSocket.Read(data)
 			if err != nil {
 				fmt.Printf("iperfSocket read err:%v\n", err)
