@@ -40,9 +40,11 @@ func (c *ProxyClient) UplinkHandler() {
 }
 
 func (c *ProxyClient) DownlinkHandler() {
+	fmt.Println("[debug] DownlinkHandler")
 	data := make([]byte, 1500)
 	d := c.Datagrammer
 	fmt.Println("get Qconn")
+	// go d.SleepAndLog(30 * time.Second)
 	for {
 		if c.UDPsocket == nil {
 			fmt.Println("[error] UDPsocket is nil.")

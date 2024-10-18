@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -11,6 +14,8 @@ import (
 type conf struct {
 	LocalAddr  string `yaml:"localAddr"`
 	RemoteAddr string `yaml:"remoteAddr"`
+	// should write to CSV?
+	WriteCSV bool `yaml:"writeCSV"`
 }
 
 func main() {
@@ -57,6 +62,10 @@ func main() {
 			iperfSocket.Write(data[:n])
 		}
 	}()
+
+	cycleTime := make([]int64, 5000)
+	var LastTime, t1 time.Time
+	LastTime = time.Now()
 	// downlink
 	i := 0
 	go func() {
@@ -68,6 +77,13 @@ func main() {
 				break
 			}
 			_, err = socket.Write(data[:n])
+			// record cycle time
+			t1 = time.Now()
+			if i < 5000 {
+				// cycletime[0] should be remove.
+				cycleTime[i] = int64(t1.Sub(LastTime))
+			}
+			LastTime = time.Now()
 			if err != nil {
 				fmt.Printf("socket write err:%v\n", err)
 			}
@@ -75,6 +91,25 @@ func main() {
 		}
 		fmt.Printf("total receive %d packet.\n", i)
 	}()
+
+	time.Sleep(60 * time.Second)
+
+	if c.WriteCSV {
+		fmt.Println("Write to CSV...")
+		file, err := os.OpenFile("../../udp.csv", os.O_WRONLY, 0777)
+		if err != nil {
+			fmt.Printf("open csv file err:%v\n", err)
+		}
+		w := csv.NewWriter(file)
+		w.Write([]string{"cycle time"})
+		for i = 0; i < 5000; i++ {
+			row := make([]string, 1)
+			row[0] = strconv.Itoa(int(cycleTime[i]))
+			w.Write(row)
+		}
+		fmt.Printf("i = %d\n", i)
+		w.Flush()
+	}
 
 	for {
 
