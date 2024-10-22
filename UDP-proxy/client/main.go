@@ -129,8 +129,9 @@ func main() {
 		}
 	}()
 
+	done := make(chan struct{})
 	for {
-
+		<-done
 	}
 
 }
