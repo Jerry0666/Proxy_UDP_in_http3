@@ -1,0 +1,8 @@
+proxyServerIP: 192.168.5.1
+proxyServerPort: 30000
+pathIP1: 172.16.0.2
+pathPort1: 9000
+pathIP2: 172.16.0.3
+pathPort2: 8000
+
+

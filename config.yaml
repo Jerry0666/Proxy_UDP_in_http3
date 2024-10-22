@@ -1,2 +1,3 @@
 localAddr: 172.16.0.2:9000
 remoteAddr: 192.168.5.1:7000
+writeCSV: True

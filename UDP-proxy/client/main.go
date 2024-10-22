@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -16,14 +18,18 @@ import (
 type conf struct {
 	LocalAddr  string `yaml:"localAddr"`
 	RemoteAddr string `yaml:"remoteAddr"`
+	// should write to CSV?
+	WriteCSV bool `yaml:"writeCSV"`
 }
+
+var c conf
 
 func main() {
 	yamlFile, err := os.ReadFile("../../config.yaml")
 	if err != nil {
-		fmt.Printf("yamlFile.Get err   #%v ", err)
+		fmt.Printf("yamlFile.Get err  %v\n", err)
 	}
-	var c conf
+
 	err = yaml.Unmarshal(yamlFile, &c)
 	if err != nil {
 		fmt.Printf("yaml unmarshal err:%v\n", err)
@@ -46,6 +52,30 @@ func main() {
 		fmt.Printf("create new tun interface err:%v\n", err)
 	}
 	setRoute()
+
+	//uplink
+	cycleTime := make([]int64, 5000)
+	var LastTime, t1 time.Time
+	LastTime = time.Now()
+	i := 0
+	go func() {
+		time.Sleep(60 * time.Second)
+		if c.WriteCSV {
+			fmt.Println("Write to CSV...")
+			file, err := os.OpenFile("../../uplinkCycle.csv", os.O_WRONLY, 0777)
+			if err != nil {
+				fmt.Printf("open csv file err:%v\n", err)
+			}
+			w := csv.NewWriter(file)
+			w.Write([]string{"udp"})
+			for i = 0; i < 5000; i++ {
+				row := make([]string, 1)
+				row[0] = strconv.Itoa(int(cycleTime[i]))
+				w.Write(row)
+			}
+			w.Flush()
+		}
+	}()
 
 	go func() {
 		buf := make([]byte, 1500)
@@ -80,9 +110,19 @@ func main() {
 					src, dst := setUDPaddr(buf[:28])
 					go downlink(socket, src, dst, ifce)
 					Ready = true
+					socket.Write(buf[28:n])
+					continue
 				}
 				if ConnString == ConnTuple {
 					socket.Write(buf[28:n])
+					// record cycle time
+					t1 = time.Now()
+					if i < 5000 {
+						// cycletime[0] should be remove.
+						cycleTime[i] = int64(t1.Sub(LastTime))
+					}
+					LastTime = time.Now()
+					i++
 				}
 
 			}
@@ -187,9 +227,38 @@ func setUDPaddr(buf []byte) (src, dst *net.UDPAddr) {
 }
 
 func downlink(socket *net.UDPConn, appClient, appServer *net.UDPAddr, ifce *water.Interface) {
+	cycleTime := make([]int64, 5000)
+	var LastTime, t1 time.Time
+	LastTime = time.Now()
 	data := make([]byte, 1500)
+	i := 0
+	// go func() {
+	// 	time.Sleep(60 * time.Second)
+	// 	if c.WriteCSV {
+	// 		fmt.Println("Write to CSV...")
+	// 		file, err := os.OpenFile("../../cycle.csv", os.O_WRONLY, 0777)
+	// 		if err != nil {
+	// 			fmt.Printf("open csv file err:%v\n", err)
+	// 		}
+	// 		w := csv.NewWriter(file)
+	// 		w.Write([]string{"cycle time"})
+	// 		for i = 0; i < 5000; i++ {
+	// 			row := make([]string, 1)
+	// 			row[0] = strconv.Itoa(int(cycleTime[i]))
+	// 			w.Write(row)
+	// 		}
+	// 		w.Flush()
+	// 	}
+	// }()
 	for {
 		n, _ := socket.Read(data)
+		// record cycle time
+		t1 = time.Now()
+		if i < 5000 {
+			// cycletime[0] should be remove.
+			cycleTime[i] = int64(t1.Sub(LastTime))
+		}
+		LastTime = time.Now()
 		UDPpacket, err := buildUDPPacket(appClient, appServer, data[:n])
 		if err != nil {
 			fmt.Printf("build UDP Packet err:%v\n", err)
@@ -199,6 +268,7 @@ func downlink(socket *net.UDPConn, appClient, appServer *net.UDPAddr, ifce *wate
 		if err != nil {
 			fmt.Printf("ifce write err:%v\n", err)
 		}
+		i++
 	}
 }
 
